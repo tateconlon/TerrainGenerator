@@ -1,0 +1,58 @@
+#version 400 core
+
+in vec2 pass_textureCoordinate;	//Input colour of vertex from vertex shader
+in vec3 surfaceNormal;
+in vec3 toLightVector;
+in vec3 toCameraVector;
+in vec3 pass_position;
+
+out vec4 out_pix_Color; //Output colour of individual pixel
+
+uniform sampler2D grassSampler;	
+uniform sampler2D rockSampler;
+uniform sampler2D snowSampler;	
+uniform sampler2D waterSampler;	
+uniform vec3 lightColour;
+uniform float shineDamper;
+uniform float reflectivity;
+
+void main(void) {
+
+	vec3 unitNormal = normalize(surfaceNormal);
+	vec3 unitLight = normalize(toLightVector);
+	
+	float nDotl = dot(unitNormal, unitLight);
+	float brightness = max(nDotl, 0.2);	//Minimum is 0.2, this is the ambient light
+	vec3 diffuse = brightness * lightColour;
+	
+	vec3 unitToCamera = normalize(toCameraVector);
+	vec3 unitLightToPoint = -unitLight;
+	vec3 unitReflectedLightDirection = reflect(unitLightToPoint, unitNormal);	//reflects about the normal, giving direction of reflected light
+	
+	float specularFactor = dot(unitToCamera, unitReflectedLightDirection);
+	specularFactor = max(specularFactor, 0.0);
+	float dampedFactor = pow(specularFactor, shineDamper);
+	vec3 finalSpecular = dampedFactor * reflectivity * lightColour;
+	
+	vec4 textureColour;
+	if(pass_position.y > 200) {
+		textureColour = texture(snowSampler, pass_textureCoordinate);
+	} else if(pass_position.y > 150) {
+		float factor = (pass_position.y - 150.0)/50.0;
+		textureColour = factor * texture(snowSampler, pass_textureCoordinate) + (1 - factor) * texture(rockSampler, pass_textureCoordinate);
+	} else if(pass_position.y > 60) {
+		textureColour = texture(rockSampler, pass_textureCoordinate);
+	} else if(pass_position.y > 40) {
+		float factor = (pass_position.y - 40.0)/20.0;
+		textureColour = factor * texture(rockSampler, pass_textureCoordinate) + (1 - factor) * texture(grassSampler, pass_textureCoordinate);
+	} else if(pass_position.y > 0) {
+		textureColour = texture(grassSampler, pass_textureCoordinate);
+	} else if(pass_position.y > -20) {
+		float factor = (pass_position.y + 20.0)/20.0;
+		textureColour = factor * texture(grassSampler, pass_textureCoordinate) + (1 - factor) * texture(rockSampler, pass_textureCoordinate);
+	} else {
+		textureColour = texture(waterSampler, pass_textureCoordinate);
+	}
+	
+	out_pix_Color = vec4(finalSpecular, 1.0) + vec4(diffuse, 1.0) * textureColour;
+}
